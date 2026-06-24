@@ -17,5 +17,4 @@ public class RabbitMQService {
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.ROUTING_KEY, message);
         log.info("Message sent to RabbitMQ: {}", message);
     }
-
 }

@@ -19,4 +19,8 @@ public class InvoiceService {
     public List<Invoice> getAllByPendingStatus() {
         return invoiceRepository.findAllByStatusIs(InvoiceStatus.PENDING.name());
     }
+
+    public void updateInvoiceStatus(List<Long> invoiceIds, InvoiceStatus invoiceStatus) {
+
+    }
 }

@@ -1,6 +1,7 @@
 services:
   mysql:
     image: mysql:8.0
+    container_name: mysql
     ports:
       - "3306:3306"
     environment:
@@ -13,6 +14,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:4.3.2-management
+    container_name: rabbitmq
     ports:
       - "5672:5672"      # AMQP protocol
       - "15672:15672"    # RabbitMQ Management UI - browser/admin UI
@@ -24,6 +26,7 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
+    container_name: prometheus
     ports:
       - "9090:9090"
     command:
@@ -36,13 +39,25 @@ services:
 
   grafana:
     image: grafana/grafana:latest
+    container_name: grafana
     ports:
       - "3000:3000"
     volumes:
       - /grafana-data:/var/lib/grafana
+
+  redis:
+    image: redis:8.8.0
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
 
 volumes:
   mysql-data:
   rabbitmq-data:
   prometheus-data:
   grafana-data:
+  redis-data:

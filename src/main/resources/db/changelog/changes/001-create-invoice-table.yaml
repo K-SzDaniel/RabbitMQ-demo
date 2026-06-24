@@ -1,7 +1,7 @@
 databaseChangeLog:
   - changeSet:
       id: 001-create-invoice-table
-      author: miltdev
+      author: milthdev
       changes:
         - createTable:
             tableName: invoices
