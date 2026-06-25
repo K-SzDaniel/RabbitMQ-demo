@@ -82,7 +82,7 @@ public class InvoiceJobService {
     private boolean retry(List<Long> invoiceIds) {
         for (int i = 0; i < MAX_RETRY_ATTEMPTS; i++) {
             try {
-                Thread.sleep(Duration.ofMinutes(RETRY_INTERVAL_MINUTES));
+                sleepBeforeRetry();
                 if (sendMessage(invoiceIds)) {
                     return true;
                 }
@@ -93,5 +93,9 @@ public class InvoiceJobService {
             }
         }
         return false;
+    }
+
+    void sleepBeforeRetry() throws InterruptedException {
+        Thread.sleep(Duration.ofMinutes(RETRY_INTERVAL_MINUTES));
     }
 }
