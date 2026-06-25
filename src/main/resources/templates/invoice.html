@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <title>Invoice template</title>
+    <meta charset="UTF-8" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            color: #222;
+        }
+
+        .header {
+            border-bottom: 2px solid #222;
+            margin-bottom: 24px;
+        }
+
+        .row {
+            margin-bottom: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 24px;
+        }
+
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .total {
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+    <h1>Invoice</h1>
+    <p th:text="'Invoice number: ' + ${invoice.invoiceNumber}"></p>
+</div>
+
+<div class="row">
+    <strong>Customer:</strong>
+    <span th:text="${invoice.customerName}"></span>
+</div>
+
+<div class="row">
+    <strong>Email:</strong>
+    <span th:text="${invoice.customerEmail}"></span>
+</div>
+
+<div class="row">
+    <strong>Address:</strong>
+    <span th:text="${invoice.customerAddress}"></span>
+</div>
+
+<div class="row">
+    <strong>Issue date:</strong>
+    <span th:text="${invoice.issueDate}"></span>
+</div>
+
+<div class="row">
+    <strong>Due date:</strong>
+    <span th:text="${invoice.dueDate}"></span>
+</div>
+
+<table>
+    <tr>
+        <th>Description</th>
+        <th>Amount</th>
+    </tr>
+    <tr>
+        <td>Subtotal</td>
+        <td th:text="${invoice.subtotal} + ' ' + ${invoice.currency}"></td>
+    </tr>
+    <tr>
+        <td>Tax</td>
+        <td th:text="${invoice.taxAmount} + ' ' + ${invoice.currency}"></td>
+    </tr>
+    <tr>
+        <td class="total">Total</td>
+        <td class="total" th:text="${invoice.totalAmount} + ' ' + ${invoice.currency}"></td>
+    </tr>
+</table>
+</body>
+</html>

@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import miltdev.com.rabbitmqdemo.entities.Invoice;
 import miltdev.com.rabbitmqdemo.enums.InvoiceStatus;
+import miltdev.com.rabbitmqdemo.exceptions.NotFoundException;
 import miltdev.com.rabbitmqdemo.repositories.InvoiceRepository;
 import org.springframework.stereotype.Service;
 
@@ -25,5 +26,10 @@ public class InvoiceService {
     public void updateInvoiceStatus(List<Long> invoiceIds, InvoiceStatus invoiceStatus) {
         int updatedRowsCount = invoiceRepository.updateStatusByIdIn(invoiceIds, invoiceStatus);
         log.info("Updated {} invoices", updatedRowsCount);
+    }
+
+    public Invoice getById(Long invoiceId) {
+        return invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + invoiceId));
     }
 }
