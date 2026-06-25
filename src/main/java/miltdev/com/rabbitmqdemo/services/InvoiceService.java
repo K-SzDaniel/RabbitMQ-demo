@@ -1,5 +1,6 @@
 package miltdev.com.rabbitmqdemo.services;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import miltdev.com.rabbitmqdemo.entities.Invoice;
@@ -17,10 +18,12 @@ public class InvoiceService {
     private final InvoiceRepository invoiceRepository;
 
     public List<Invoice> getAllByPendingStatus() {
-        return invoiceRepository.findAllByStatusIs(InvoiceStatus.PENDING.name());
+        return invoiceRepository.findAllByStatusIs(InvoiceStatus.PENDING);
     }
 
+    @Transactional
     public void updateInvoiceStatus(List<Long> invoiceIds, InvoiceStatus invoiceStatus) {
-
+        int updatedRowsCount = invoiceRepository.updateStatusByIdIn(invoiceIds, invoiceStatus);
+        log.info("Updated {} invoices", updatedRowsCount);
     }
 }

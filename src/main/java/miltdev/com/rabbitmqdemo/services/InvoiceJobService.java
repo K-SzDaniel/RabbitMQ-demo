@@ -4,8 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import miltdev.com.rabbitmqdemo.entities.Invoice;
 import miltdev.com.rabbitmqdemo.enums.InvoiceStatus;
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.amqp.AmqpException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
@@ -21,70 +19,79 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class InvoiceJobService {
 
+    private static final int MAX_RETRY_ATTEMPTS = 3;
     private static final int BATCH_SIZE = 100;
+    private static final int RETRY_INTERVAL_MINUTES = 1;
+
     private final RabbitMQService rabbitMQService;
     private final InvoiceService invoiceService;
     private final RedisLockService redisLockService;
     private final ObjectMapper objectMapper;
 
     @Scheduled(cron = "0 * * * * *")
-    public void prepareInvoiceJobs() throws InterruptedException {
+    public void prepareInvoiceJobs() {
         String lockKey = "invoice-job-initialization";
         String uuid = UUID.randomUUID().toString();
         if (!redisLockService.acquireLock(lockKey, uuid, Duration.ofMinutes(30))) {
             log.info("Invoice job already running");
             return;
         }
-        List<Invoice> invoices = invoiceService.getAllByPendingStatus();
-        if (invoices == null || invoices.isEmpty()) {
-            log.info("No processable invoices found");
-            return;
-        }
-        List<Long> invoiceIds = new ArrayList<>();
-        if (invoices.size() >= BATCH_SIZE) {
-            for (int i = 0; i < invoices.size(); i += BATCH_SIZE) {
-                List<Invoice> invoiceBatch = invoices.subList(i, (Math.min(i + BATCH_SIZE, invoices.size())));
-                invoiceBatch.forEach(invoice -> invoice.setStatus(InvoiceStatus.PROCESSING));
-                invoiceIds.addAll(invoiceBatch
-                        .stream()
-                        .map(Invoice::getId)
-                        .toList());
-                log.info("Sending {} invoiceId to RabbitMQ", invoiceIds.size());
-                String rabbitMQMessage = null;
-                try {
-                    rabbitMQMessage = objectMapper.writeValueAsString(invoiceIds);
-                    rabbitMQService.sendMessage(rabbitMQMessage);
-                    invoiceService.updateInvoiceStatus(invoiceIds, InvoiceStatus.PROCESSING);
-                    invoiceIds.clear();
-                } catch (JacksonException e) {
-                    log.error("JacksonException occurred", e);
-                } catch (AmqpException e) {
-                    log.error("Message sending failed to RabbitMQ", e);
-                    retry(rabbitMQMessage);
-                }
+        try {
+            List<Invoice> invoices = invoiceService.getAllByPendingStatus();
+            if (invoices == null || invoices.isEmpty()) {
+                log.info("No processable invoices found");
+                return;
             }
-        } else {
-            rabbitMQService.sendMessage(objectMapper.writeValueAsString(invoices
-                    .stream()
-                    .map(Invoice::getId)
-                    .toList()));
+            log.info("Sending {} invoiceId to RabbitMQ", invoices.size());
+            getInvoiceIds(invoices).forEach(this::sendRabbitMQMessage);
+        } finally {
+            redisLockService.releaseLock(lockKey, uuid);
         }
-        redisLockService.releaseLock(lockKey, uuid);
     }
 
-    private void retry(String rabbitMQMessage) throws InterruptedException {
-        if (StringUtils.isBlank(rabbitMQMessage)) {
-            log.error("RabbitMQ message is blank retry skipped");
-            return;
+    private void sendRabbitMQMessage(List<Long> invoiceIds) {
+        try {
+            if (sendMessage(invoiceIds) || retry(invoiceIds)) {
+                invoiceService.updateInvoiceStatus(invoiceIds, InvoiceStatus.PROCESSING);
+            }
+        } catch (JacksonException e) {
+            log.error("JacksonException occurred", e);
         }
-        for (int i = 0; i < 3; i++) {
+    }
+
+    private boolean sendMessage(List<Long> invoiceIds) {
+        return rabbitMQService.sendMessage(objectMapper.writeValueAsString(invoiceIds));
+    }
+
+    private List<List<Long>> getInvoiceIds(List<Invoice> invoices) {
+        List<List<Long>> invoiceIdLists = new ArrayList<>();
+        for (int i = 0; i < invoices.size(); i += BATCH_SIZE) {
+            invoiceIdLists.add(getInvoiceIds(invoices, i));
+        }
+        return invoiceIdLists;
+    }
+
+    private List<Long> getInvoiceIds(List<Invoice> invoices, int i) {
+        List<Invoice> invoiceBatch = invoices.subList(i, (Math.min(i + BATCH_SIZE, invoices.size())));
+        return invoiceBatch
+                .stream()
+                .map(Invoice::getId)
+                .toList();
+    }
+
+    private boolean retry(List<Long> invoiceIds) {
+        for (int i = 0; i < MAX_RETRY_ATTEMPTS; i++) {
             try {
-                rabbitMQService.sendMessage(rabbitMQMessage);
-                break;
-            } catch (AmqpException e) {
-                log.error("Message sending with retry failed to RabbitMQ attempts {}", i, e);
-                Thread.sleep(1000);
+                Thread.sleep(Duration.ofMinutes(RETRY_INTERVAL_MINUTES));
+                if (sendMessage(invoiceIds)) {
+                    return true;
+                }
+            } catch (InterruptedException ex) {
+                log.error("RabbitMQ message retry failed", ex);
+                Thread.currentThread().interrupt();
+                return false;
             }
         }
+        return false;
     }
 }
