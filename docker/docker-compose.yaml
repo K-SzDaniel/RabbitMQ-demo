@@ -11,6 +11,8 @@ services:
       MYSQL_PASSWORD: password
     volumes:
       - mysql-data:/var/lib/mysql
+    networks:
+      - local
 
   rabbitmq:
     image: rabbitmq:4.3.2-management
@@ -23,6 +25,8 @@ services:
       RABBITMQ_DEFAULT_PASS: password
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - local
 
   prometheus:
     image: prom/prometheus:latest
@@ -36,6 +40,8 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
+    networks:
+      - local
 
   grafana:
     image: grafana/grafana:latest
@@ -44,6 +50,8 @@ services:
       - "3000:3000"
     volumes:
       - /grafana-data:/var/lib/grafana
+    networks:
+      - local
 
   redis:
     image: redis:8.8.0
@@ -54,6 +62,22 @@ services:
     volumes:
       - redis-data:/data
     restart: unless-stopped
+    networks:
+      - local
+
+  fake-smtp:
+    image: axllent/mailpit
+    container_name: mailpit
+    ports:
+        - "8025:8025"
+        - "1025:1025"
+    restart: unless-stopped
+    networks:
+      - local
+
+
+networks:
+  local:
 
 volumes:
   mysql-data:

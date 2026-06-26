@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import miltdev.com.rabbitmqdemo.entities.Invoice;
 import miltdev.com.rabbitmqdemo.enums.InvoiceStatus;
+import miltdev.com.rabbitmqdemo.enums.RetryType;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
@@ -21,12 +22,13 @@ public class InvoiceJobService {
 
     private static final int MAX_RETRY_ATTEMPTS = 3;
     private static final int BATCH_SIZE = 100;
-    private static final int RETRY_INTERVAL_MINUTES = 1;
+    private static final Duration RETRY_INTERVAL_MINUTES = Duration.ofMinutes(5);
 
     private final RabbitMQService rabbitMQService;
     private final InvoiceService invoiceService;
     private final RedisLockService redisLockService;
     private final ObjectMapper objectMapper;
+    private final RetryService retryService;
 
     @Scheduled(cron = "0 * * * * *")
     public void prepareInvoiceJobs() {
@@ -59,6 +61,11 @@ public class InvoiceJobService {
         }
     }
 
+    private boolean retry(List<Long> invoiceIds) {
+        return retryService.retry(RetryType.MESSAGE_CONSUMER, MAX_RETRY_ATTEMPTS, RETRY_INTERVAL_MINUTES,
+                () -> sendMessage(invoiceIds));
+    }
+
     private boolean sendMessage(List<Long> invoiceIds) {
         return rabbitMQService.sendMessage(objectMapper.writeValueAsString(invoiceIds));
     }
@@ -77,25 +84,5 @@ public class InvoiceJobService {
                 .stream()
                 .map(Invoice::getId)
                 .toList();
-    }
-
-    private boolean retry(List<Long> invoiceIds) {
-        for (int i = 0; i < MAX_RETRY_ATTEMPTS; i++) {
-            try {
-                sleepBeforeRetry();
-                if (sendMessage(invoiceIds)) {
-                    return true;
-                }
-            } catch (InterruptedException ex) {
-                log.error("RabbitMQ message retry failed", ex);
-                Thread.currentThread().interrupt();
-                return false;
-            }
-        }
-        return false;
-    }
-
-    void sleepBeforeRetry() throws InterruptedException {
-        Thread.sleep(Duration.ofMinutes(RETRY_INTERVAL_MINUTES));
     }
 }

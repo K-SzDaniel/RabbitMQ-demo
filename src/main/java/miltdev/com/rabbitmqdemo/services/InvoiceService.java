@@ -32,4 +32,9 @@ public class InvoiceService {
         return invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new NotFoundException("Invoice not found with id: " + invoiceId));
     }
+
+    public void markInvoiceAsSent(Invoice invoice) {
+        invoice.setStatus(InvoiceStatus.EMAIL_SENT);
+        invoiceRepository.save(invoice);
+    }
 }

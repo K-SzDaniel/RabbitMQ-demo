@@ -1,14 +1,14 @@
 spring:
   data:
     redis:
-      host: localhost
+      host: redis
       port: 6379
 
   application:
     name: RabbitMQ demo
 
   rabbitmq:
-    host: localhost
+    host: rabbitmq
     port: 5672
     username: user
     password: password
@@ -21,6 +21,6 @@ spring:
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
   datasource:
-    url: jdbc:mysql://localhost:3306/rabbitmq
+    url: jdbc:mysql://mysql:3306/rabbitmq
     username: user
     password: password

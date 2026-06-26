@@ -2,6 +2,8 @@ package miltdev.com.rabbitmqdemo.services;
 
 import miltdev.com.rabbitmqdemo.entities.Invoice;
 import miltdev.com.rabbitmqdemo.enums.InvoiceStatus;
+import miltdev.com.rabbitmqdemo.enums.RetryType;
+import miltdev.com.rabbitmqdemo.exceptions.RetryFailedException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,6 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.stream.LongStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,6 +28,8 @@ class InvoiceJobServiceTest {
 
     private static final String LOCK_KEY = "invoice-job-initialization";
     private static final Duration LOCK_TTL = Duration.ofMinutes(30);
+    private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final Duration RETRY_INTERVAL = Duration.ofMinutes(5);
 
     @Mock
     private RabbitMQService rabbitMQService;
@@ -34,11 +39,12 @@ class InvoiceJobServiceTest {
     private RedisLockService redisLockService;
     @Mock
     private ObjectMapper objectMapper;
+    @Mock
+    private RetryService retryService;
     @Captor
     private ArgumentCaptor<List<Long>> invoiceIdsCaptor;
     @Captor
     private ArgumentCaptor<String> lockValueCaptor;
-    @Spy
     @InjectMocks
     private InvoiceJobService invoiceJobService;
 
@@ -48,7 +54,8 @@ class InvoiceJobServiceTest {
                 rabbitMQService,
                 invoiceService,
                 redisLockService,
-                objectMapper);
+                objectMapper,
+                retryService);
     }
 
     @Test
@@ -178,45 +185,52 @@ class InvoiceJobServiceTest {
     }
 
     @Test
-    void given_InitialSendFailsAndRetrySucceeds_whenPrepareInvoiceJobs_then_UpdatesStatusAfterRetry()
-            throws InterruptedException {
+    void given_InitialSendFailsAndRetrySucceeds_whenPrepareInvoiceJobs_then_UpdatesStatusAfterRetry() {
         // Arrange
         List<Long> expectedInvoiceIds = createInvoiceIds(42, 1);
         mockSuccessfulLockAcquisition();
-        mockRetrySleeping();
         mockObjectWriteToString();
         when(invoiceService.getAllByPendingStatus()).thenReturn(createInvoices(42, 1));
         when(rabbitMQService.sendMessage(anyString())).thenReturn(false, true);
+        mockRetryServiceRunsAction();
 
         // Act
         invoiceJobService.prepareInvoiceJobs();
 
         // Assert
         verify(rabbitMQService, times(2)).sendMessage(expectedInvoiceIds.toString());
-        verify(invoiceJobService).sleepBeforeRetry();
+        verify(retryService).retry(
+                eq(RetryType.MESSAGE_CONSUMER),
+                eq(MAX_RETRY_ATTEMPTS),
+                eq(RETRY_INTERVAL),
+                any());
         verify(invoiceService).updateInvoiceStatus(invoiceIdsCaptor.capture(), eq(InvoiceStatus.PROCESSING));
         assertThat(invoiceIdsCaptor.getValue()).containsExactlyElementsOf(expectedInvoiceIds);
         verifyLockReleased();
     }
 
     @Test
-    void given_InitialSendAndAllRetriesFail_whenPrepareInvoiceJobs_then_DoesNotUpdateStatus()
-            throws InterruptedException {
+    void given_InitialSendAndAllRetriesFail_whenPrepareInvoiceJobs_then_DoesNotUpdateStatusAndPropagatesRetryFailure() {
         // Arrange
+        RetryFailedException failure = new RetryFailedException("message sending failed after retries");
         List<Invoice> invoices = createInvoices(7, 1);
+        List<Long> expectedInvoiceIds = createInvoiceIds(7, 1);
         mockSuccessfulLockAcquisition();
-        mockRetrySleeping();
         mockObjectWriteToString();
         when(invoiceService.getAllByPendingStatus()).thenReturn(invoices);
         when(rabbitMQService.sendMessage(anyString())).thenReturn(false);
+        when(retryService.retry(eq(RetryType.MESSAGE_CONSUMER), eq(MAX_RETRY_ATTEMPTS), eq(RETRY_INTERVAL), any()))
+                .thenThrow(failure);
 
-        // Act
-        invoiceJobService.prepareInvoiceJobs();
-
-        // Assert
-        verify(rabbitMQService, times(4))
-                .sendMessage(createInvoiceIds(7, 1).toString());
-        verify(invoiceJobService, times(3)).sleepBeforeRetry();
+        // Act + Assert
+        assertThatThrownBy(() -> invoiceJobService.prepareInvoiceJobs())
+                .isSameAs(failure);
+        verify(rabbitMQService).sendMessage(expectedInvoiceIds.toString());
+        verify(retryService).retry(
+                eq(RetryType.MESSAGE_CONSUMER),
+                eq(MAX_RETRY_ATTEMPTS),
+                eq(RETRY_INTERVAL),
+                any());
         verify(invoiceService, never()).updateInvoiceStatus(anyList(), any());
         verifyLockReleased();
     }
@@ -262,8 +276,12 @@ class InvoiceJobServiceTest {
         when(objectMapper.writeValueAsString(any())).thenAnswer(invocation -> invocation.getArgument(0).toString());
     }
 
-    private void mockRetrySleeping() throws InterruptedException {
-        doNothing().when(invoiceJobService).sleepBeforeRetry();
+    private void mockRetryServiceRunsAction() {
+        when(retryService.retry(eq(RetryType.MESSAGE_CONSUMER), eq(MAX_RETRY_ATTEMPTS), eq(RETRY_INTERVAL), any()))
+                .thenAnswer(invocation -> {
+                    Callable<Boolean> action = invocation.getArgument(3);
+                    return action.call();
+                });
     }
 
     private void verifyLockReleased() {

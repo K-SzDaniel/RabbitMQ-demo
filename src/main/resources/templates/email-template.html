@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Your invoice document</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f6f8; font-family: Arial, sans-serif; color: #1f2933;">
+<table>
+    <tr>
+        <td>
+            <table>
+                <tr>
+                    <td style="padding: 28px 32px 16px 32px; border-bottom: 1px solid #d9e2ec;">
+                        <h1 style="margin: 0; font-size: 22px; line-height: 1.3; color: #102a43;">Your invoice is attached</h1>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 24px 32px;">
+                        <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 1.5;">
+                            Hello <span th:text="${name}">Customer</span>,
+                        </p>
+
+                        <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6;">
+                            Please find your invoice PDF attached to this email.
+                        </p>
+
+                        <p style="margin: 0 0 24px 0; font-size: 15px; line-height: 1.6;">
+                            If you have any questions about this invoice, reply to this email and we will help you.
+                        </p>
+
+                        <p style="margin: 0; font-size: 15px; line-height: 1.6;">
+                            Best regards,<br />
+                            Billing Team
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 16px 32px; background-color: #f8fafc; border-top: 1px solid #d9e2ec;">
+                        <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #627d98;">
+                            This email was sent automatically. The invoice is included as a PDF attachment.
+                        </p>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

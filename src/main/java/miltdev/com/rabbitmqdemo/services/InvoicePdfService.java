@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import java.io.File;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,7 +19,7 @@ public class InvoicePdfService {
 
     private final TemplateEngine templateEngine;
 
-    public Path generateInvoicePdf(Invoice invoice) {
+    public File generateInvoicePdf(Invoice invoice) {
         try {
             Context context = new Context();
             context.setVariable("invoice", invoice);
@@ -38,7 +39,7 @@ public class InvoicePdfService {
                 builder.run();
             }
 
-            return pdfPath;
+            return pdfPath.toFile();
         } catch (Exception e) {
             throw new PdfGenerateException(e);
         }

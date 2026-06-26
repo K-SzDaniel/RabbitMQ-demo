@@ -1,0 +1,191 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: rabbitmq
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-uuser", "-ppassword" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - local
+
+  rabbitmq:
+    image: rabbitmq:4.3.2-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"      # AMQP protocol
+      - "15672:15672"    # RabbitMQ Management UI - browser/admin UI
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - local
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    restart: unless-stopped
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - local
+    depends_on:
+      - rabbitmq
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - /grafana-data:/var/lib/grafana
+    networks:
+      - local
+    depends_on:
+      - prometheus
+
+  redis:
+    image: redis:8.8.0
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: [ "redis-server", "--appendonly", "yes" ]
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - local
+    depends_on:
+      - grafana
+
+  fake-smtp:
+    image: axllent/mailpit
+    container_name: mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    restart: unless-stopped
+    networks:
+      - local
+    depends_on:
+      - redis
+
+  node-1:
+    container_name: node-1
+    build: ../
+    environment:
+      SPRING_PROFILES_ACTIVE: multi-node
+    ports:
+      - "8080:8080"
+    volumes:
+      - node-1-generated-invoices:/app/generated-invoices
+    networks:
+      - local
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
+      fake-smtp:
+        condition: service_started
+
+  node-2:
+    container_name: node-2
+    build: ../
+    environment:
+      SPRING_PROFILES_ACTIVE: multi-node
+    ports:
+      - "8081:8080"
+    volumes:
+      - node-2-generated-invoices:/app/generated-invoices
+    networks:
+      - local
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
+      fake-smtp:
+        condition: service_started
+
+  node-3:
+    container_name: node-3
+    build: ../
+    environment:
+      SPRING_PROFILES_ACTIVE: multi-node
+    ports:
+      - "8082:8080"
+    volumes:
+      - node-3-generated-invoices:/app/generated-invoices
+    networks:
+      - local
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
+      fake-smtp:
+        condition: service_started
+
+  node-4:
+    container_name: node-4
+    build: ../
+    environment:
+      SPRING_PROFILES_ACTIVE: multi-node
+    ports:
+      - "8083:8080"
+    volumes:
+      - node-4-generated-invoices:/app/generated-invoices
+    networks:
+      - local
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
+      fake-smtp:
+        condition: service_started
+
+networks:
+  local:
+
+volumes:
+  mysql-data:
+  rabbitmq-data:
+  prometheus-data:
+  grafana-data:
+  redis-data:
+  node-1-generated-invoices:
+  node-2-generated-invoices:
+  node-3-generated-invoices:
+  node-4-generated-invoices:
