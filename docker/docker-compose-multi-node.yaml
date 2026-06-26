@@ -116,6 +116,7 @@ services:
   node-2:
     container_name: node-2
     build: ../
+    entrypoint: ["sh", "-c", "sleep 30 && java -jar app.jar"]
     environment:
       SPRING_PROFILES_ACTIVE: multi-node
     ports:
@@ -137,33 +138,13 @@ services:
   node-3:
     container_name: node-3
     build: ../
+    entrypoint: ["sh", "-c", "sleep 60 && java -jar app.jar"]
     environment:
       SPRING_PROFILES_ACTIVE: multi-node
     ports:
       - "8082:8080"
     volumes:
       - node-3-generated-invoices:/app/generated-invoices
-    networks:
-      - local
-    depends_on:
-      mysql:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_started
-      redis:
-        condition: service_started
-      fake-smtp:
-        condition: service_started
-
-  node-4:
-    container_name: node-4
-    build: ../
-    environment:
-      SPRING_PROFILES_ACTIVE: multi-node
-    ports:
-      - "8083:8080"
-    volumes:
-      - node-4-generated-invoices:/app/generated-invoices
     networks:
       - local
     depends_on:

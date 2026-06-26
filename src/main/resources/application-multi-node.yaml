@@ -13,6 +13,19 @@ spring:
     username: user
     password: password
 
+  mail:
+    host: fake-smtp
+    port: 1025
+    properties:
+      mail:
+        transport:
+          protocol: smtp
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+        debug: false
+
   jpa:
     hibernate:
       ddl-auto: validate
